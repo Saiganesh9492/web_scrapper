@@ -1,6 +1,9 @@
 import { Page } from "playwright";
 import { OrdersListInterface } from "../interfaces/scraper.interface";
-import { AMAZON_CONSTANTS } from "../constants/amazon.constants";
+import {
+  AMAZON_CONSTANTS,
+  FILTER_SELECTION_MESSAGE,
+} from "../constants/amazon.constants";
 import inquirer from "inquirer";
 
 export class ScraperHelper {
@@ -100,26 +103,26 @@ export class ScraperHelper {
     await page.getByRole("button", { name: "Sign in" }).click();
   }
 
-  async loginToAmazon(
-    page: Page
-  ): Promise<void> {
+  async loginToAmazon(page: Page): Promise<void> {
     await page.goto(AMAZON_CONSTANTS.SIGN_IN_URL, {
       waitUntil: "networkidle",
       timeout: 60000,
     });
-      const { username, password } = await inquirer.prompt([
-        {
-          type: "input",
-          name: "username",
-          message: "Enter your Amazon email:",
-        },
-        {
-          type: "password",
-          name: "password",
-          message: "Enter your Amazon password:",
-          mask: "*",
-        },
-      ]);
+    // const { username, password } = await inquirer.prompt([
+    //   {
+    //     type: "input",
+    //     name: "username",
+    //     message: "Enter your Amazon email:",
+    //   },
+    //   {
+    //     type: "password",
+    //     name: "password",
+    //     message: "Enter your Amazon password:",
+    //     mask: "*",
+    //   },
+    // ]);
+    const username = "9110376162";
+    const password = "Saiga@1403";
     await page.fill("#ap_email", username);
     await page.click("#continue");
     await page.waitForSelector("#ap_password", { timeout: 10000 });
@@ -146,60 +149,95 @@ export class ScraperHelper {
   async fetchSearchResults(page: Page): Promise<OrdersListInterface[]> {
     await page.getByRole("searchbox", { name: "Search Amazon.in" }).click();
 
-    const { searchArray } = await inquirer.prompt([
+    const { searchArray, isFiltersNeeded } = await inquirer.prompt([
       {
         type: "input",
         name: "searchArray",
         message:
-          "Enter search strings as a string to fetch the items available on Amazon:",
+          "Enter search strings as comma-separated values to fetch the items available on Amazon:",
+      },
+      {
+        type: "input",
+        name: "isFiltersNeeded",
+        message: "Do you want to apply any filters? (yes/no):",
       },
     ]);
 
-    await page
-      .getByRole("searchbox", { name: "Search Amazon.in" })
-      .fill(searchArray);
-    await page.getByRole("button", { name: "Go", exact: true }).click();
+    if (!searchArray) {
+      throw new Error("Search array is empty");
+    }
 
-    await page.waitForSelector(
-      ".a-link-normal.s-line-clamp-3.s-link-style.a-text-normal",
-      { timeout: 10000 }
-    );
+    const searchTerms = searchArray.split(",").map((s: string) => s.trim());
+    let filters: string[] = [];
 
-    const products = await page.evaluate(() => {
-      const items: any[] = [];
+    if (isFiltersNeeded.toLowerCase() === "yes") {
+      const filterPrompt = await inquirer.prompt([
+        {
+          type: "input",
+          name: "filters",
+          message: FILTER_SELECTION_MESSAGE,
+        },
+      ]);
+      filters = filterPrompt.filters.split(",").map((f: string) => f.trim());
+    }
 
-      const productLinks = document.querySelectorAll(
-        ".a-link-normal.s-link-style"
-      );
+    const allResults: OrdersListInterface[] = [];
 
-      productLinks.forEach((linkEl) => {
-        const anchor = linkEl as HTMLAnchorElement;
-        const container = anchor.closest("div.s-result-item");
+    for (const term of searchTerms) {
+      console.log(`🔍 Searching for: "${term}"`);
 
-        const name = anchor.textContent?.trim() || "N/A";
-        const href = anchor.href;
+      await page
+        .getByRole("searchbox", { name: "Search Amazon.in" })
+        .fill(term);
+      await page.getByRole("button", { name: "Go", exact: true }).click();
 
-        const priceWhole =
-          container?.querySelector(".a-price-whole")?.textContent?.trim() || "";
-        const priceFraction =
-          container?.querySelector(".a-price-fraction")?.textContent?.trim() ||
-          "";
-
-        const price = priceWhole
-          ? `₹${priceWhole}${priceFraction ? "." + priceFraction : ""}`
-          : "N/A";
-
-        items.push({
-          name,
-          link: href,
-          price,
-        });
+      await page.waitForSelector(".a-link-normal.s-link-style", {
+        timeout: 10000,
       });
 
-      return items;
-    });
+      const products = await page.evaluate(() => {
+        const items: any[] = [];
 
-    console.log("Search Results:", products.length);
-    return products;
+        const productLinks = document.querySelectorAll(
+          "a.a-link-normal.s-link-style"
+        );
+
+        productLinks.forEach((anchor) => {
+          const container = anchor.closest("div.s-result-item");
+
+          const name = anchor.textContent?.trim() || "N/A";
+          const href = anchor instanceof HTMLAnchorElement ? anchor.href : "";
+
+          const priceWhole =
+            container?.querySelector(".a-price-whole")?.textContent?.trim() ||
+            "";
+          const priceFraction =
+            container
+              ?.querySelector(".a-price-fraction")
+              ?.textContent?.trim() || "";
+
+          const price = priceWhole
+            ? `₹${priceWhole}${priceFraction ? "." + priceFraction : ""}`
+            : "N/A";
+
+          if (name && href && price) {
+            items.push({ name, link: href, price });
+          }
+        });
+
+        return items;
+      });
+
+      allResults.push(...products);
+
+      // Optional: Apply filter interaction if needed (this part is Amazon-specific and can vary by UI)
+      if (filters.length > 0) {
+        console.log(`⚙️ Filters selected: ${filters.join(", ")}`);
+        // You may need to inspect the filter buttons manually to add automation.
+      }
+    }
+
+    console.log(`✅ Total results collected: ${allResults.length}`);
+    return allResults;
   }
 }
