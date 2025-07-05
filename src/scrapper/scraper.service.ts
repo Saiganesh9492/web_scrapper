@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { Browser, chromium } from "playwright";
 import { ScraperHelper } from "./helpers/scraper.helper";
-import inquirer from "inquirer";
 
 @Injectable()
 export class ScraperService implements OnModuleInit, OnModuleDestroy {
@@ -25,44 +24,37 @@ export class ScraperService implements OnModuleInit, OnModuleDestroy {
   }
 
   async searchProduct() {
-    const context = await this.browser.newContext();
-    const page = await context.newPage();
-    await this.scraperHelper.loginToAmazon(page, "9110376162", "Saiga@1403");
-    return await this.scraperHelper.fetchSearchResults(page);
+    try {
+      const context = await this.browser.newContext();
+      const page = await context.newPage();
+      await this.scraperHelper.loginToAmazon(page);
+      const searchResults = await this.scraperHelper.fetchSearchResults(page);
+      return { data: searchResults, count: searchResults.length };
+    } catch (error: any) {
+      return [
+        { message: "Please try with another product", error: error.message },
+      ];
+    }
   }
 
-  async scrapePurchases() {
+  async scrapePurchases(): Promise<{ data: any | [], count: number, error?: string }> {
     const context = await this.browser.newContext();
     const page = await context.newPage();
 
     try {
       console.log("Starting Amazon purchase scraping...");
-      // const { username, password } = await inquirer.prompt([
-      //   {
-      //     type: "input",
-      //     name: "username",
-      //     message: "Enter your Amazon email:",
-      //   },
-      //   {
-      //     type: "password",
-      //     name: "password",
-      //     message: "Enter your Amazon password:",
-      //     mask: "*",
-      //   },
-      // ]);
-
-      await this.scraperHelper.loginToAmazon(page, "9110376162", "Saiga@1403");
+      await this.scraperHelper.loginToAmazon(page);
       await this.scraperHelper.navigateToOrders(page);
       const orders = await this.scraperHelper.extractOrders(page);
 
       console.log("Scraping complete:", orders);
 
       await context.close();
-      return orders;
+      return { data: orders, count: orders.length };
     } catch (err: any) {
       await context.close();
       console.error("Scraping error:", err);
-      return [{ error: err.message }];
+      return {data: [], count: 0, error: err.message};
     }
   }
 }

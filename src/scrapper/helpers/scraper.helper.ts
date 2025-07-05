@@ -56,7 +56,7 @@ export class ScraperHelper {
     });
   }
 
-  public async extractOrders(page: Page): Promise<any[]> {
+  public async extractOrders(page: Page): Promise<OrdersListInterface[]> {
     const allOrders: any[] = [];
 
     for (const filter of AMAZON_CONSTANTS.YEAR_FILTERS) {
@@ -101,14 +101,25 @@ export class ScraperHelper {
   }
 
   async loginToAmazon(
-    page: Page,
-    username: string,
-    password: string
+    page: Page
   ): Promise<void> {
     await page.goto(AMAZON_CONSTANTS.SIGN_IN_URL, {
       waitUntil: "networkidle",
       timeout: 60000,
     });
+      const { username, password } = await inquirer.prompt([
+        {
+          type: "input",
+          name: "username",
+          message: "Enter your Amazon email:",
+        },
+        {
+          type: "password",
+          name: "password",
+          message: "Enter your Amazon password:",
+          mask: "*",
+        },
+      ]);
     await page.fill("#ap_email", username);
     await page.click("#continue");
     await page.waitForSelector("#ap_password", { timeout: 10000 });
@@ -158,7 +169,7 @@ export class ScraperHelper {
       const items: any[] = [];
 
       const productLinks = document.querySelectorAll(
-        ".a-link-normal.s-line-clamp-3.s-link-style.a-text-normal"
+        ".a-link-normal.s-link-style"
       );
 
       productLinks.forEach((linkEl) => {
@@ -188,7 +199,7 @@ export class ScraperHelper {
       return items;
     });
 
-    console.log("Search Results:", products);
+    console.log("Search Results:", products.length);
     return products;
   }
 }
