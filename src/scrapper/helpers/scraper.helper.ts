@@ -146,20 +146,13 @@ export class ScraperHelper {
     await page.getByRole("link", { name: "Returns & Orders" }).click();
   }
 
-  async fetchSearchResults(page: Page): Promise<OrdersListInterface[]> {
-    await page.getByRole("searchbox", { name: "Search Amazon.in" }).click();
-
-    const { searchArray, isFiltersNeeded } = await inquirer.prompt([
+  private async promptSearchTerms(): Promise<string[]> {
+    const { searchArray } = await inquirer.prompt([
       {
         type: "input",
         name: "searchArray",
         message:
           "Enter search strings as comma-separated values to fetch the items available on Amazon:",
-      },
-      {
-        type: "input",
-        name: "isFiltersNeeded",
-        message: "Do you want to apply any filters? (yes/no):",
       },
     ]);
 
@@ -167,73 +160,88 @@ export class ScraperHelper {
       throw new Error("Search array is empty");
     }
 
-    const searchTerms = searchArray.split(",").map((s: string) => s.trim());
-    let filters: string[] = [];
+    return searchArray.split(",").map((s: string) => s.trim());
+  }
 
-    if (isFiltersNeeded.toLowerCase() === "yes") {
-      const filterPrompt = await inquirer.prompt([
-        {
-          type: "input",
-          name: "filters",
-          message: FILTER_SELECTION_MESSAGE,
-        },
-      ]);
-      filters = filterPrompt.filters.split(",").map((f: string) => f.trim());
-    }
+  private async promptFilters(): Promise<string[]> {
+    const { isFiltersNeeded } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "isFiltersNeeded",
+        message: "Do you want to apply any filters? (yes/no):",
+      },
+    ]);
 
+    if (isFiltersNeeded.toLowerCase() !== "yes") return [];
+
+    const { filters } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "filters",
+        message: FILTER_SELECTION_MESSAGE,
+      },
+    ]);
+
+    return filters.split(",").map((f: string) => f.trim());
+  }
+
+  private async searchForTerm(page: Page, term: string): Promise<void> {
+    await page.getByRole("searchbox", { name: "Search Amazon.in" }).fill(term);
+    await page.getByRole("button", { name: "Go", exact: true }).click();
+    await page.waitForSelector(".a-link-normal.s-link-style", {
+      timeout: 10000,
+    });
+  }
+
+  private async extractSearchResults(
+    page: Page
+  ): Promise<OrdersListInterface[]> {
+    return await page.evaluate(() => {
+      const items: any[] = [];
+
+      const productLinks = document.querySelectorAll(
+        "a.a-link-normal.s-link-style"
+      );
+
+      productLinks.forEach((anchor) => {
+        const container = anchor.closest("div.s-result-item");
+
+        const name = anchor.textContent?.trim() || "N/A";
+        const href = anchor instanceof HTMLAnchorElement ? anchor.href : "";
+
+        const priceWhole =
+          container?.querySelector(".a-price-whole")?.textContent?.trim() || "";
+        const priceFraction =
+          container?.querySelector(".a-price-fraction")?.textContent?.trim() ||
+          "";
+
+        const price = priceWhole
+          ? `₹${priceWhole}${priceFraction ? "." + priceFraction : ""}`
+          : "N/A";
+
+        if (name && href && price) {
+          items.push({ name, link: href, price });
+        }
+      });
+
+      return items;
+    });
+  }
+
+  public async fetchSearchResults(page: Page): Promise<OrdersListInterface[]> {
+    const searchTerms = await this.promptSearchTerms();
+    const filters = await this.promptFilters();
     const allResults: OrdersListInterface[] = [];
 
     for (const term of searchTerms) {
       console.log(`🔍 Searching for: "${term}"`);
-
-      await page
-        .getByRole("searchbox", { name: "Search Amazon.in" })
-        .fill(term);
-      await page.getByRole("button", { name: "Go", exact: true }).click();
-
-      await page.waitForSelector(".a-link-normal.s-link-style", {
-        timeout: 10000,
-      });
-
-      const products = await page.evaluate(() => {
-        const items: any[] = [];
-
-        const productLinks = document.querySelectorAll(
-          "a.a-link-normal.s-link-style"
-        );
-
-        productLinks.forEach((anchor) => {
-          const container = anchor.closest("div.s-result-item");
-
-          const name = anchor.textContent?.trim() || "N/A";
-          const href = anchor instanceof HTMLAnchorElement ? anchor.href : "";
-
-          const priceWhole =
-            container?.querySelector(".a-price-whole")?.textContent?.trim() ||
-            "";
-          const priceFraction =
-            container
-              ?.querySelector(".a-price-fraction")
-              ?.textContent?.trim() || "";
-
-          const price = priceWhole
-            ? `₹${priceWhole}${priceFraction ? "." + priceFraction : ""}`
-            : "N/A";
-
-          if (name && href && price) {
-            items.push({ name, link: href, price });
-          }
-        });
-
-        return items;
-      });
-
+      await this.searchForTerm(page, term);
+      const products = await this.extractSearchResults(page);
       allResults.push(...products);
 
-      // Optional: Apply filter interaction if needed (this part is Amazon-specific and can vary by UI)
       if (filters.length > 0) {
         console.log(`⚙️ Filters selected: ${filters.join(", ")}`);
-        // You may need to inspect the filter buttons manually to add automation.
+        // Optional: Apply actual filters using page.click/filter logic if needed.
       }
     }
 
