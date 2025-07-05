@@ -132,16 +132,18 @@ export class ScraperHelper {
     await page.getByRole("link", { name: "Returns & Orders" }).click();
   }
 
-  async fetchSearchResults(page: Page): Promise<OrdersListInterface[] | any> {
+  async fetchSearchResults(page: Page): Promise<OrdersListInterface[]> {
     await page.getByRole("searchbox", { name: "Search Amazon.in" }).click();
+
     const { searchArray } = await inquirer.prompt([
       {
         type: "input",
         name: "searchArray",
         message:
-          "Enter search strings as an array of string to fetch the items available in Amazon:",
+          "Enter search strings as a string to fetch the items available on Amazon:",
       },
     ]);
+
     await page
       .getByRole("searchbox", { name: "Search Amazon.in" })
       .fill(searchArray);
@@ -152,19 +154,41 @@ export class ScraperHelper {
       { timeout: 10000 }
     );
 
-    const docs = await page.evaluate(() => {
-      const elements = document.querySelectorAll(
+    const products = await page.evaluate(() => {
+      const items: any[] = [];
+
+      const productLinks = document.querySelectorAll(
         ".a-link-normal.s-line-clamp-3.s-link-style.a-text-normal"
       );
 
-      return Array.from(elements).map((el) => ({
-        text: el.textContent?.trim(),
-        href: (el as HTMLAnchorElement).href,
-        price:'0'
-      }));
+      productLinks.forEach((linkEl) => {
+        const anchor = linkEl as HTMLAnchorElement;
+        const container = anchor.closest("div.s-result-item");
+
+        const name = anchor.textContent?.trim() || "N/A";
+        const href = anchor.href;
+
+        const priceWhole =
+          container?.querySelector(".a-price-whole")?.textContent?.trim() || "";
+        const priceFraction =
+          container?.querySelector(".a-price-fraction")?.textContent?.trim() ||
+          "";
+
+        const price = priceWhole
+          ? `₹${priceWhole}${priceFraction ? "." + priceFraction : ""}`
+          : "N/A";
+
+        items.push({
+          name,
+          link: href,
+          price,
+        });
+      });
+
+      return items;
     });
 
-    console.log("Search Results:", docs);
-    return docs;
+    console.log("Search Results:", products);
+    return products;
   }
 }
