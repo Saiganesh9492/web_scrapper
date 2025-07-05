@@ -24,6 +24,25 @@ export class ScraperService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async searchProduct() {
+    const context = await this.browser.newContext();
+    const page = await context.newPage();
+    await this.scraperHelper.loginToAmazon(page, "9110376162", "Saiga@1403");
+    await page.getByRole("searchbox", { name: "Search Amazon.in" }).click();
+    const { searchArray } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "searchArray",
+        message:
+          "Enter search strings as an array of string to fetch the items available in Amazon:",
+      },
+    ]);
+    await page
+      .getByRole("searchbox", { name: "Search Amazon.in" })
+      .fill(searchArray);
+    await page.getByRole("button", { name: "Go", exact: true }).click();
+  }
+
   async scrapePurchases() {
     const context = await this.browser.newContext();
     const page = await context.newPage();
@@ -45,17 +64,17 @@ export class ScraperService implements OnModuleInit, OnModuleDestroy {
       // ]);
 
       await this.scraperHelper.loginToAmazon(page, "9110376162", "Saiga@1403");
-      const orders = await this.scraperHelper.navigateAndExtractOrders(page);
+      await this.scraperHelper.navigateToOrders(page);
+      const orders = await this.scraperHelper.extractOrders(page);
 
       console.log("Scraping complete:", orders);
 
-      await context.close(); // Only close context, keep browser alive
+      await context.close();
       return orders;
     } catch (err: any) {
       await context.close();
       console.error("Scraping error:", err);
-      return [{error: err.message}];
-
+      return [{ error: err.message }];
     }
   }
 }
