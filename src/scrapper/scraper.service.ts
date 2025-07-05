@@ -28,19 +28,7 @@ export class ScraperService implements OnModuleInit, OnModuleDestroy {
     const context = await this.browser.newContext();
     const page = await context.newPage();
     await this.scraperHelper.loginToAmazon(page, "9110376162", "Saiga@1403");
-    await page.getByRole("searchbox", { name: "Search Amazon.in" }).click();
-    const { searchArray } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "searchArray",
-        message:
-          "Enter search strings as an array of string to fetch the items available in Amazon:",
-      },
-    ]);
-    await page
-      .getByRole("searchbox", { name: "Search Amazon.in" })
-      .fill(searchArray);
-    await page.getByRole("button", { name: "Go", exact: true }).click();
+    return await this.scraperHelper.fetchSearchResults(page);
   }
 
   async scrapePurchases() {
