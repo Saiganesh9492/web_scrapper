@@ -3,6 +3,7 @@ import { OrdersListInterface } from "../interfaces/scraper.interface";
 import {
   AMAZON_CONSTANTS,
   FILTER_SELECTION_MESSAGE,
+  AMAZON_FILTER_MAP,
 } from "../constants/amazon.constants";
 import inquirer from "inquirer";
 
@@ -108,21 +109,33 @@ export class ScraperHelper {
       waitUntil: "networkidle",
       timeout: 60000,
     });
-    // const { username, password } = await inquirer.prompt([
-    //   {
-    //     type: "input",
-    //     name: "username",
-    //     message: "Enter your Amazon email:",
-    //   },
-    //   {
-    //     type: "password",
-    //     name: "password",
-    //     message: "Enter your Amazon password:",
-    //     mask: "*",
-    //   },
-    // ]);
-    const username = "9110376162";
-    const password = "Saiga@1403";
+    const { username, password } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "username",
+        message: "Enter your Amazon email or number:",
+        validate: (input: string) => {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          const phoneRegex = /^[6-9]\d{9}$/;
+
+          if (!input.trim()) {
+            return "Username cannot be empty.";
+          }
+
+          if (!emailRegex.test(input) && !phoneRegex.test(input)) {
+            return "Enter a valid email or 10-digit phone number.";
+          }
+
+          return true;
+        },
+      },
+      {
+        type: "password",
+        name: "password",
+        message: "Enter your Amazon password:",
+        mask: "*",
+      },
+    ]);
     await page.fill("#ap_email", username);
     await page.click("#continue");
     await page.waitForSelector("#ap_password", { timeout: 10000 });
@@ -137,7 +150,7 @@ export class ScraperHelper {
     }
 
     if (page.url().includes("ap/signin")) {
-      throw new Error("Login failed");
+      throw new Error("Login failed due to invalid credentials");
     }
     console.log("Login successful");
   }
@@ -163,7 +176,7 @@ export class ScraperHelper {
     return searchArray.split(",").map((s: string) => s.trim());
   }
 
-  private async promptFilters(): Promise<string[]> {
+  private async promptFilters(): Promise<number> {
     const { isFiltersNeeded } = await inquirer.prompt([
       {
         type: "input",
@@ -172,17 +185,17 @@ export class ScraperHelper {
       },
     ]);
 
-    if (isFiltersNeeded.toLowerCase() !== "yes") return [];
+    if (isFiltersNeeded.toLowerCase() !== "yes") return -1;
 
-    const { filters } = await inquirer.prompt([
+    const { filter } = await inquirer.prompt([
       {
         type: "input",
-        name: "filters",
+        name: "filter",
         message: FILTER_SELECTION_MESSAGE,
       },
     ]);
 
-    return filters.split(",").map((f: string) => f.trim());
+    return Number(filter);
   }
 
   private async searchForTerm(page: Page, term: string): Promise<void> {
@@ -196,12 +209,10 @@ export class ScraperHelper {
   private async extractSearchResults(
     page: Page
   ): Promise<OrdersListInterface[]> {
+    await page.waitForSelector(".a-link-normal");
     return await page.evaluate(() => {
       const items: any[] = [];
-
-      const productLinks = document.querySelectorAll(
-        "a.a-link-normal.s-link-style"
-      );
+      const productLinks = document.querySelectorAll("a.a-link-normal");
 
       productLinks.forEach((anchor) => {
         const container = anchor.closest("div.s-result-item");
@@ -219,7 +230,7 @@ export class ScraperHelper {
           ? `₹${priceWhole}${priceFraction ? "." + priceFraction : ""}`
           : "N/A";
 
-        if (name && href && price) {
+        if (name && href && price !== "N/A") {
           items.push({ name, link: href, price });
         }
       });
@@ -228,24 +239,50 @@ export class ScraperHelper {
     });
   }
 
+  private async applySortFilter(
+    page: Page,
+    filterIndex: number
+  ): Promise<void> {
+    console.log(`🔍 Switching to filter: filterIndex ${filterIndex}`);
+    await page.getByText(`Sort by:${AMAZON_FILTER_MAP[0].label}`).click();
+    if (filterIndex === 0) return;
+    const filter = AMAZON_FILTER_MAP[filterIndex];
+    if (!filter) {
+      console.warn(`Invalid filter index: ${filterIndex}`);
+      return;
+    }
+
+    try {
+      console.log(`Applying filter: "${JSON.stringify(filter)}"`);
+
+      await page.getByLabel(filter.label).getByText(filter.label).click();
+      await page.waitForSelector(".a-link-normal", {
+        timeout: 5000,
+      });
+    } catch (err) {
+      console.warn(`⚠️ Failed to apply filter "${filter.label}":`, err);
+    }
+  }
+
   public async fetchSearchResults(page: Page): Promise<OrdersListInterface[]> {
     const searchTerms = await this.promptSearchTerms();
-    const filters = await this.promptFilters();
-    const allResults: OrdersListInterface[] = [];
+    const filterIndex = await this.promptFilters();
+    let allResults: OrdersListInterface[] = [];
 
     for (const term of searchTerms) {
-      console.log(`🔍 Searching for: "${term}"`);
       await this.searchForTerm(page, term);
-      const products = await this.extractSearchResults(page);
+      let products = await this.extractSearchResults(page);
       allResults.push(...products);
 
-      if (filters.length > 0) {
-        console.log(`⚙️ Filters selected: ${filters.join(", ")}`);
-        // Optional: Apply actual filters using page.click/filter logic if needed.
+      if (filterIndex >= 0) {
+        await this.applySortFilter(page, filterIndex);
+        const sortedProducts = await this.extractSearchResults(page);
+        allResults = [];
+        allResults.push(...sortedProducts);
       }
     }
 
-    console.log(`✅ Total results collected: ${allResults.length}`);
+    console.log(`Total results collected: ${allResults.length}`);
     return allResults;
   }
 }

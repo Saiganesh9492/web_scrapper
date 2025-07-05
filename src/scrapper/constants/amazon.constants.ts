@@ -31,11 +31,22 @@ export const AMAZON_CONSTANTS = {
 
 export const FILTER_SELECTION_MESSAGE =
   `Choose the filters you want to apply from the list below. ` +
-  `Separate multiple filters with a comma (e.g., 0,3,4):\n` +
+  `choose any one filter from the list (e.g., 0,3,4):\n` +
   `0: Featured\n` +
   `1: Newest Arrivals\n` +
   `2: Best Sellers\n` +
   `3: Price: Low to High\n` +
   `4: Price: High to Low\n` +
-  `5: Avg. Customer Ratings\n` +
-  `6: Newest Arrivals\n`;
+  `5: Avg. Customer Ratings\n`;
+
+export const AMAZON_FILTER_MAP: Record<
+  number,
+  { label: string; selector: string }
+> = {
+  0: { label: "Featured", selector: "#s-result-sort-select_0" },
+  1: { label: "Newest Arrivals", selector: "#s-result-sort-select_4" },
+  2: { label: "Best Sellers", selector: "#s-result-sort-select_5" },
+  3: { label: "Price: Low to High", selector: "#s-result-sort-select_1" },
+  4: { label: "Price: High to Low", selector: "#s-result-sort-select_2" },
+  5: { label: "Avg. Customer Review", selector: "#s-result-sort-select_3" },
+};
