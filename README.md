@@ -48,6 +48,13 @@ npm install
 npm run start:dev
 ```
 
+### 4. IF You face executable doesnt exist error . RUN BELOW COMMAND
+
+```bash
+npx playwright install
+```
+
+
 ---
 
 ## 📡 Usage
