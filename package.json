@@ -13,6 +13,7 @@
     "@nestjs/core": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "inquirer": "^9.2.11",
+    "libphonenumber-js": "^1.12.9",
     "playwright": "^1.53.2",
     "puppeteer": "^21.11.0",
     "puppeteer-extra": "^3.3.6",
