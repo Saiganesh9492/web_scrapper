@@ -11,6 +11,7 @@ A **NestJS-based CLI tool** that uses **Playwright** to log into your Amazon acc
 - **[NestJS](https://nestjs.com/)** – Scalable Node.js framework  
 - **[Playwright](https://playwright.dev/)** – Headless browser automation  
 - **[Inquirer](https://www.npmjs.com/package/inquirer)** – Interactive CLI prompts  
+- **[Node version]** – 22.15.0  
 - **TypeScript** – Static typing for JS
 
 ---
@@ -39,6 +40,7 @@ cd web_scrapper
 ### 2. Install Dependencies
 
 ```bash
+nvm use
 npm install
 ```
 
