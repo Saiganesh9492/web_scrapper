@@ -6,6 +6,7 @@ import {
   AMAZON_FILTER_MAP,
 } from "../constants/amazon.constants";
 import inquirer from "inquirer";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 export class ScraperHelper {
   private async clickFilter(page: Page, filter: string) {
@@ -122,7 +123,10 @@ export class ScraperHelper {
             return "Username cannot be empty.";
           }
 
-          if (!emailRegex.test(input) && !phoneRegex.test(input)) {
+          if (
+            !emailRegex.test(input) &&
+            (phoneRegex.test(input) || !this.isValidPhoneNumber(input))
+          ) {
             return "Enter a valid email or 10-digit phone number.";
           }
 
@@ -284,5 +288,10 @@ export class ScraperHelper {
 
     console.log(`Total results collected: ${allResults.length}`);
     return allResults;
+  }
+
+  private isValidPhoneNumber(phone: string): boolean {
+    const phoneNumber = parsePhoneNumberFromString(phone);
+    return phoneNumber?.isValid() ?? false;
   }
 }
