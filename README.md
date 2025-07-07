@@ -41,7 +41,7 @@ cd web_scrapper
 
 ```bash
 nvm use
-npm install
+npm install && npx playwright install
 ```
 
 ### 3. Run the Service
@@ -49,13 +49,6 @@ npm install
 ```bash
 npm run start:dev
 ```
-
-### 4. IF You face executable doesnt exist error . RUN BELOW COMMAND
-
-```bash
-npx playwright install
-```
-
 
 ---
 
