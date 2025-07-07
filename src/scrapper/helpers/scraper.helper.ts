@@ -127,7 +127,7 @@ export class ScraperHelper {
             !emailRegex.test(input) &&
             (phoneRegex.test(input) || !this.isValidPhoneNumber(input))
           ) {
-            return "Enter a valid email or 10-digit phone number.";
+            return "Enter a valid email or 10-digit phone number with country code.";
           }
 
           return true;
